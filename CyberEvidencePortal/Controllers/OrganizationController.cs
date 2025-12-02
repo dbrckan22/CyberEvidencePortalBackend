@@ -30,6 +30,23 @@ namespace CyberEvidencePortal.Controllers
             }
         }
 
-      
+        [HttpGet("organizations")]
+        public async Task<IActionResult> GetAllOrganizations()
+        {
+            var orgs = await _orgService.GetAllAsync();
+            return Ok(orgs);
+        }
+
+
+        [HttpGet("organizations/{id}")]
+        public async Task<IActionResult> GetOrganizationById(int id)
+        {
+            var org = await _orgService.GetByIdAsync(id);
+
+            if (org == null)
+                return NotFound(new { message = "Organization not found" });
+
+            return Ok(org);
+        }
     }
 }

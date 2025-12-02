@@ -35,5 +35,19 @@ namespace CyberEvidencePortal.Services
 
             return org;
         }
+
+        public async Task<List<Organization>> GetAllAsync()
+        {
+            return await _db.Organizations
+                .OrderBy(o => o.Name)
+                .ToListAsync();
+        }
+
+        public async Task<Organization?> GetByIdAsync(int id)
+        {
+            return await _db.Organizations
+                .FirstOrDefaultAsync(o => o.OrganizationId == id);
+        }
+
     }
 }
