@@ -14,6 +14,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<OrganizationService>();
 builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<ComplianceService>();
+builder.Services.AddScoped<EvidenceService>();
 
 builder.Services.AddCors(options =>
 {
