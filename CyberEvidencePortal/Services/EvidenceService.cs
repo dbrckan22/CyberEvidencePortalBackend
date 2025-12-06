@@ -81,5 +81,70 @@ namespace CyberEvidencePortal.Services
 
             return input;
         }
+
+        public async Task<List<EvidenceViewDto>> GetEvidenceForObligationAsync(int obligationId, int organizationId)
+        {
+            return await _db.Evidence
+                .Include(e => e.User)
+                .Where(e => e.ObligationId == obligationId &&
+                            e.User.OrganizationId == organizationId)
+                .OrderByDescending(e => e.CreatedAt)
+                .Select(e => new EvidenceViewDto
+                {
+                    EvidenceId = e.EvidenceId,
+                    Title = e.Title,
+                    EvidenceType = e.EvidenceType,
+                    FileName = Path.GetFileName(e.FilePath),
+                    ValidFrom = e.ValidFrom,
+                    ValidUntil = e.ValidUntil,
+                    CreatedAt = e.CreatedAt,
+                    Status = e.Status,
+                    AddedByUser = e.User.Name,
+                    Note = e.Note
+                })
+                .ToListAsync();
+        }
+
+        public async Task<(byte[] fileData, string fileName, string contentType)> DownloadEvidenceAsync(int evidenceId, int organizationId)
+        {
+            var evidence = await _db.Evidence
+                .Include(e => e.User)
+                .FirstOrDefaultAsync(e => e.EvidenceId == evidenceId);
+
+            if (evidence == null || evidence.User.OrganizationId != organizationId)
+                throw new UnauthorizedAccessException("Not allowed");
+
+            if (string.IsNullOrEmpty(evidence.FilePath) || !File.Exists(evidence.FilePath))
+                throw new FileNotFoundException("File not found");
+
+            var bytes = await File.ReadAllBytesAsync(evidence.FilePath);
+            var fileName = Path.GetFileName(evidence.FilePath);
+            var contentType = "application/octet-stream";
+
+            return (bytes, fileName, contentType);
+        }
+
+        public async Task<bool> DeleteEvidenceAsync(int evidenceId, int organizationId)
+        {
+            var evidence = await _db.Evidence
+                .Include(e => e.User)
+                .FirstOrDefaultAsync(e => e.EvidenceId == evidenceId);
+
+            if (evidence == null)
+                return false;
+
+            if (evidence.User.OrganizationId != organizationId)
+                throw new UnauthorizedAccessException("Not allowed");
+
+            if (!string.IsNullOrEmpty(evidence.FilePath) && File.Exists(evidence.FilePath))
+                File.Delete(evidence.FilePath);
+
+            _db.Evidence.Remove(evidence);
+            await _db.SaveChangesAsync();
+
+            return true;
+        }
+
+
     }
 }
