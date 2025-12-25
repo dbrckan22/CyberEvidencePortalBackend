@@ -75,5 +75,13 @@ namespace CyberEvidencePortal.Controllers
             }
         }
 
+        [HttpPost("export")]
+        public async Task<IActionResult> ExportEvidence([FromBody] ExportRequestDto dto)
+        {
+            var (zipBytes, fileName) = await _evidenceService.ExportEvidenceAsync(dto);
+            return File(zipBytes, "application/zip", fileName);
+        }
+
+
     }
 }

@@ -2,6 +2,8 @@
 using CyberEvidencePortal.DTOs;
 using CyberEvidencePortal.Models;
 using Microsoft.EntityFrameworkCore;
+using System.IO.Compression;
+using System.Text.Json;
 
 namespace CyberEvidencePortal.Services
 {
@@ -143,6 +145,81 @@ namespace CyberEvidencePortal.Services
             await _db.SaveChangesAsync();
 
             return true;
+        }
+
+        public async Task<(byte[] zipBytes, string fileName)> ExportEvidenceAsync(ExportRequestDto dto)
+        {
+            var user = await _db.Users
+                .Include(u => u.Organization)
+                .FirstOrDefaultAsync(u => u.UserId == dto.UserId);
+
+            if (user == null)
+                throw new UnauthorizedAccessException();
+
+            var evidenceQuery = _db.Evidence
+                .Include(e => e.Obligation)
+                    .ThenInclude(o => o.Category)
+                .Include(e => e.User)
+                .Where(e => e.User.OrganizationId == user.OrganizationId &&
+                            dto.CategoryIds.Contains(e.Obligation.CategoryId));
+
+            if (!dto.IncludeExpired)
+                evidenceQuery = evidenceQuery.Where(e =>
+                    !e.ValidUntil.HasValue || e.ValidUntil >= DateTime.Today);
+
+            var evidenceList = await evidenceQuery.ToListAsync();
+
+            using var memoryStream = new MemoryStream();
+            using var archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, true);
+
+            foreach (var group in evidenceList
+                .GroupBy(e => new { e.Obligation.Category.Name, e.Obligation.Title }))
+            {
+                string categoryFolder = CleanName(group.Key.Name);
+                string obligationFolder = CleanName(group.Key.Title);
+
+                foreach (var e in group)
+                {
+                    if (!string.IsNullOrEmpty(e.FilePath) && File.Exists(e.FilePath))
+                    {
+                        string zipPath = Path.Combine(
+                            categoryFolder,
+                            obligationFolder,
+                            Path.GetFileName(e.FilePath));
+
+                        archive.CreateEntryFromFile(e.FilePath, zipPath);
+                    }
+                }
+
+                if (dto.IncludeMetadata)
+                {
+                    var meta = group.Select(e => new
+                    {
+                        e.Title,
+                        e.EvidenceType,
+                        e.ValidFrom,
+                        e.ValidUntil,
+                        e.Status,
+                        AddedBy = e.User.Name,
+                        e.CreatedAt,
+                        e.Note
+                    });
+
+                    var entry = archive.CreateEntry(
+                        Path.Combine(categoryFolder, obligationFolder, "metadata.json"));
+
+                    using var writer = new StreamWriter(entry.Open());
+                    await writer.WriteAsync(JsonSerializer.Serialize(meta, new JsonSerializerOptions
+                    {
+                        WriteIndented = true
+                    }));
+                }
+            }
+
+            archive.Dispose();
+
+            return (memoryStream.ToArray(),
+                $"Export_{user.Organization.Name}_{DateTime.Now:yyyyMMdd}.zip");
         }
 
 

@@ -50,5 +50,19 @@ namespace CyberEvidencePortal.Controllers
             return Ok(result);
         }
 
+        [HttpGet("compliance/summary")]
+        public async Task<IActionResult> GetComplianceSummary(int organizationId)
+        {
+            var summary = await _service.GetSummaryAsync(organizationId);
+            return Ok(summary);
+        }
+
+        [HttpGet("compliance/categories")]
+        public async Task<IActionResult> GetComplianceByCategory(int organizationId)
+        {
+            var data = await _service.GetComplianceByCategoryAsync(organizationId);
+            return Ok(data);
+        }
+
     }
 }
